@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>氧气/氮气/水汽/空气拉曼散射光谱与截面高精度交互仿真软件</title>
+    <!-- Local Plotly with CDN fallback for 100% offline and online support -->
+    <script src="plotly.min.js"></script>
+    <script>
+        if (typeof Plotly === 'undefined') {
+            document.write('<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"><\/script>');
+        }
+    </script>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        input[type=range] { accent-color: #0284c7; }
+        .tab-btn.active { background-color: #0284c7; color: white; border-color: #0284c7; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-3">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                    <span class="text-sky-400">🔬 N₂ / O₂ / H₂O / Air</span> <span id="hdr-title-text">拉曼散射光谱与截面实时交互仿真平台</span>
+                </h1>
+                <p id="hdr-subtitle" class="text-xs text-slate-400">
+                    微观量子能级 · 核自旋统计 · 玻尔兹曼布居 · Placzek色散定律 · 全偏振分解 · 水汽通道扩展 · 离线全交互
+                </p>
+            </div>
+            <div class="flex items-center gap-2.5">
+                <!-- Language Switcher Toggle -->
+                <div class="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700 text-xs shadow-inner">
+                    <button id="btn-lang-zh" type="button" onclick="setLanguage('zh')" class="px-2.5 py-1 rounded font-semibold transition bg-sky-600 text-white">中文</button>
+                    <button id="btn-lang-en" type="button" onclick="setLanguage('en')" class="px-2.5 py-1 rounded font-semibold transition text-slate-300 hover:text-white">English</button>
+                </div>
+                <span id="badge-kernel" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    ⚡ 浏览器实时计算内核
+                </span>
+                <button id="btn-export-csv" onclick="exportCSV()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium rounded-lg shadow transition flex items-center gap-1">
+                    💾 导出当前CSV数据
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container: Sidebar + Plot -->
+    <main class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left Controls Sidebar (4 cols) -->
+            <div class="lg:col-span-4 space-y-4">
+
+                <!-- 1. Gas Selection -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                    <label id="lbl-sec-gas" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">1. 目标气体 (Target Gas)</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs sm:text-sm" id="gas-selector">
+                        <button type="button" data-gas="Air" onclick="setGas('Air')" class="gas-btn active py-2 px-2 rounded-lg border font-medium text-center transition bg-sky-600 text-white border-sky-600">干空气 (Dry Air)</button>
+                        <button type="button" data-gas="HumidAir" onclick="setGas('HumidAir')" class="gas-btn py-2 px-2 rounded-lg border font-medium text-center transition bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100">含湿空气 (Humid)</button>
+                        <button type="button" data-gas="N2" onclick="setGas('N2')" class="gas-btn py-2 px-2 rounded-lg border font-medium text-center transition bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100">氮气 (N₂)</button>
+                        <button type="button" data-gas="O2" onclick="setGas('O2')" class="gas-btn py-2 px-2 rounded-lg border font-medium text-center transition bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100">氧气 (O₂)</button>
+                        <button type="button" data-gas="H2O" onclick="setGas('H2O')" class="gas-btn py-2 px-2 rounded-lg border font-medium text-center transition bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100">水汽 (H₂O)</button>
+                        <button type="button" data-gas="All" onclick="setGas('All')" class="gas-btn py-2 px-2 rounded-lg border font-medium text-center transition bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100">全组分对比 (All)</button>
+                    </div>
+                </div>
+
+                <!-- 2. Excitation Wavelength -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <label id="lbl-sec-laser" class="text-xs font-bold text-slate-500 uppercase tracking-wider">2. 激光波长 λ₀ (Laser)</label>
+                        <span id="laser-val" class="text-sm font-bold text-sky-600">532.0 nm</span>
+                    </div>
+                    <input type="range" id="laser-slider" min="200" max="1100" step="0.5" value="532.0" class="w-full h-2 bg-slate-200 rounded-lg cursor-pointer mb-2" oninput="onLaserSlide(this.value)">
+                    <div class="flex flex-wrap gap-1.5 text-xs">
+                        <button onclick="setLaser(266)" class="px-2 py-1 bg-slate-100 hover:bg-sky-100 hover:text-sky-700 rounded border border-slate-200">266 nm</button>
+                        <button onclick="setLaser(355)" class="px-2 py-1 bg-slate-100 hover:bg-sky-100 hover:text-sky-700 rounded border border-slate-200">355 nm</button>
+                        <button onclick="setLaser(532)" class="px-2 py-1 bg-slate-100 hover:bg-sky-100 hover:text-sky-700 rounded border border-slate-200">532 nm</button>
+                        <button onclick="setLaser(632.8)" class="px-2 py-1 bg-slate-100 hover:bg-sky-100 hover:text-sky-700 rounded border border-slate-200">632.8 nm</button>
+                        <button onclick="setLaser(785)" class="px-2 py-1 bg-slate-100 hover:bg-sky-100 hover:text-sky-700 rounded border border-slate-200">785 nm</button>
+                        <button onclick="setLaser(1064)" class="px-2 py-1 bg-slate-100 hover:bg-sky-100 hover:text-sky-700 rounded border border-slate-200">1064 nm</button>
+                    </div>
+                </div>
+
+                <!-- 3. Temperature -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <label id="lbl-sec-temp" class="text-xs font-bold text-slate-500 uppercase tracking-wider">3. 环境温度 T (Temperature)</label>
+                        <span id="temp-val" class="text-sm font-bold text-emerald-600">296.2 K</span>
+                    </div>
+                    <input type="range" id="temp-slider" min="100" max="1500" step="5" value="296.15" class="w-full h-2 bg-slate-200 rounded-lg cursor-pointer mb-2" oninput="onTempSlide(this.value)">
+                    <div class="flex justify-between text-xs text-slate-500">
+                        <button id="btn-temp-120" onclick="setTemp(120)" class="hover:text-sky-600">高空 120K</button>
+                        <button id="btn-temp-296" onclick="setTemp(296.15)" class="hover:text-sky-600 font-semibold">常温 296K</button>
+                        <button id="btn-temp-600" onclick="setTemp(600)" class="hover:text-sky-600">排气 600K</button>
+                        <button id="btn-temp-1200" onclick="setTemp(1200)" class="hover:text-sky-600">火焰 1200K</button>
+                    </div>
+                </div>
+
+                <!-- 3.5 Pressure & Collisional Broadening -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label id="lbl-sec-press" class="block text-xs font-bold text-slate-500 uppercase tracking-wider">3.5 环境压强与碰撞展宽</label>
+                        <span id="badge-press-status" class="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-100 text-slate-600 border border-slate-200">基准无碰撞</span>
+                    </div>
+
+                    <!-- Toggle Checkbox -->
+                    <label class="flex items-center gap-2 cursor-pointer bg-slate-50 p-2.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors">
+                        <input type="checkbox" id="chk-enable-pressure" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500" onchange="togglePressureBroadening(this.checked)">
+                        <span id="lbl-chk-press" class="text-xs font-medium text-slate-800">开启低层大气碰撞压力展宽 (Voigt)</span>
+                    </label>
+
+                    <!-- Dimmable Pressure Controls Panel -->
+                    <div id="pressure-panel" class="space-y-2 opacity-40 pointer-events-none transition-opacity">
+                        <div class="flex justify-between items-center text-xs">
+                            <span id="lbl-press-title" class="text-slate-600 font-medium">环境气压 P:</span>
+                            <span id="pressure-val" class="font-bold text-indigo-700 font-mono">1.00 atm (1013 hPa)</span>
+                        </div>
+                        <input type="range" id="pressure-slider" min="0.00" max="2.00" step="0.05" value="1.00"
+                               class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                               oninput="onPressureSlide(this.value)">
+                        <div class="flex justify-between text-xs text-slate-500 pt-1">
+                            <button id="btn-press-0" onclick="setPressure(0.00)" class="hover:text-indigo-600">0.00 真空</button>
+                            <button id="btn-press-25" onclick="setPressure(0.25)" class="hover:text-indigo-600">0.25 高空</button>
+                            <button id="btn-press-100" onclick="setPressure(1.00)" class="hover:text-indigo-600 font-semibold text-indigo-600">1.00 常压</button>
+                            <button id="btn-press-150" onclick="setPressure(1.50)" class="hover:text-indigo-600">1.50 增压</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Transitions Selection -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                    <label id="lbl-sec-trans" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">4. 跃迁阶数与支系 (Transitions)</label>
+                    <div class="space-y-2 text-sm">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="chk-rot" checked class="w-4 h-4 rounded text-sky-600" onchange="recalculateAndPlot()">
+                            <span id="lbl-chk-rot" class="text-slate-700">纯转动拉曼 (Pure Rotational S/O支)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="chk-fund" checked class="w-4 h-4 rounded text-sky-600" onchange="recalculateAndPlot()">
+                            <span id="lbl-chk-fund" class="text-slate-700">基频振转 (Fundamental v=0→1, Q/O/S)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="chk-hot" class="w-4 h-4 rounded text-sky-600" onchange="recalculateAndPlot()">
+                            <span id="lbl-chk-hot" class="text-slate-700">热带跃迁 (Hot Bands v=1→2)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="chk-over" class="w-4 h-4 rounded text-sky-600" onchange="recalculateAndPlot()">
+                            <span id="lbl-chk-over" class="text-slate-700">泛频跃迁 (Overtones v=0→2)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 5. Polarization -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                    <label id="lbl-sec-pol" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">5. 偏振通道 (Polarization)</label>
+                    <select id="sel-pol" onchange="recalculateAndPlot()" class="w-full py-2 px-3 rounded-lg border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:border-sky-500">
+                        <option value="total" id="opt-pol-total">总非偏振散射截面 (Total)</option>
+                        <option value="parallel" id="opt-pol-parallel">平行偏振分量 (Parallel I_∥)</option>
+                        <option value="perpendicular" id="opt-pol-perp">垂直偏振分量 (Perpendicular I_⊥)</option>
+                        <option value="depol_ratio" id="opt-pol-depol">退偏振比 (Depol. Ratio ρ)</option>
+                    </select>
+                </div>
+
+                <!-- 6. Instrument & Laser Linewidth Profile -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-3">
+                    <label id="lbl-sec-optics" class="block text-xs font-bold text-slate-500 uppercase tracking-wider">6. 光学分辨率与激光谱宽卷积</label>
+
+                    <!-- Receiver resolution / filter bandwidth -->
+                    <div>
+                        <div class="flex justify-between items-center text-xs mb-1">
+                            <span id="lbl-fwhm-title" class="text-slate-600 font-medium">接收端分辨率/滤光片半宽:</span>
+                            <span id="fwhm-val" class="font-bold text-slate-800 font-mono">0.25 nm</span>
+                        </div>
+                        <input type="range" id="fwhm-slider" min="0.02" max="3.0" step="0.02" value="0.25" class="w-full h-2 bg-slate-200 rounded-lg cursor-pointer" oninput="onFwhmSlide(this.value)">
+                    </div>
+
+                    <!-- Laser linewidth toggle & double convolution panel -->
+                    <div class="pt-2 border-t border-slate-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700">
+                                <input type="checkbox" id="chk-enable-laser-lw" class="w-4 h-4 rounded text-sky-600" onchange="toggleLaserLinewidth(this.checked)">
+                                <span id="lbl-chk-laser-lw">启用发射激光谱宽双重卷积</span>
+                            </label>
+                            <span id="badge-eff-fwhm" class="px-2 py-0.5 rounded text-[11px] font-mono bg-sky-50 text-sky-700 border border-sky-200">
+                                合成半宽: 0.25 nm
+                            </span>
+                        </div>
+
+                        <div id="laser-lw-panel" class="space-y-2 opacity-40 pointer-events-none transition-opacity">
+                            <div class="flex justify-between items-center text-xs">
+                                <span id="lbl-laser-lw-title" class="text-slate-500">激光脉冲谱宽 FWHM_laser:</span>
+                                <span id="laser-lw-val" class="font-bold text-slate-700 font-mono">0.020 nm</span>
+                            </div>
+                            <input type="range" id="laser-lw-slider" min="0.000" max="0.150" step="0.002" value="0.020" class="w-full h-2 bg-slate-200 rounded-lg cursor-pointer" oninput="onLaserLwSlide(this.value)">
+                            <div class="flex flex-wrap gap-1 text-[11px]">
+                                <button id="btn-laser-0" type="button" onclick="setLaserLw(0.000)" class="px-2 py-0.5 bg-slate-100 hover:bg-sky-100 hover:text-sky-700 rounded border border-slate-200">0.00 nm (单频)</button>
+                                <button id="btn-laser-02" type="button" onclick="setLaserLw(0.020)" class="px-2 py-0.5 bg-slate-100 hover:bg-sky-100 hover:text-sky-700 rounded border border-slate-200">0.02 nm (常规YAG)</button>
+                                <button id="btn-laser-08" type="button" onclick="setLaserLw(0.080)" class="px-2 py-0.5 bg-slate-100 hover:bg-sky-100 hover:text-sky-700 rounded border border-slate-200">0.08 nm (宽带)</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
+                        <div>
+                            <span id="lbl-xaxis-title" class="text-slate-500 block mb-1">横坐标类型:</span>
+                            <select id="sel-xaxis" onchange="recalculateAndPlot()" class="w-full py-1.5 px-2 rounded border border-slate-200 bg-slate-50">
+                                <option value="wavelength" id="opt-xaxis-wl">波长 (nm)</option>
+                                <option value="raman_shift" id="opt-xaxis-shift">拉曼位移 (cm⁻¹)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <span id="lbl-yscale-title" class="text-slate-500 block mb-1">纵坐标刻度:</span>
+                            <select id="sel-yscale" onchange="toggleYScale(this.value)" class="w-full py-1.5 px-2 rounded border border-slate-200 bg-slate-50">
+                                <option value="linear" id="opt-yscale-lin">线性刻度 (Linear)</option>
+                                <option value="log" id="opt-yscale-log">对数刻度 (Log10)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Plot Area (8 cols) -->
+            <div class="lg:col-span-8 space-y-4">
+
+                <!-- Interactive Chart Box -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                    <div id="plot-div" style="width: 100%; height: 620px;"></div>
+                </div>
+
+                <!-- Live Metrics Summary Bar -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 text-xs sm:text-sm text-slate-700 flex flex-wrap justify-between items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                        <span id="metric-lines" class="font-bold text-slate-900">0 条谱线</span>
+                    </div>
+                    <div id="metric-strongest" class="text-slate-600">
+                        最强峰: 计算中...
+                    </div>
+                    <div id="metric-total-cross" class="text-slate-600 font-mono">
+                        全谱总截面: 计算中...
+                    </div>
+                </div>
+
+                <!-- Physics Theory Quick Reference Card -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
+                    <div class="bg-white rounded-xl p-4 border border-slate-200">
+                        <h4 id="theory1-title" class="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                            <span class="text-sky-500">●</span> 量子自旋对称性法则
+                        </h4>
+                        <p id="theory1-p1"><b>¹⁴N₂ (I=1)</b>: 偶J态与奇J态权重为 <b>2:1</b>，呈现梳状齿轮峰强。</p>
+                        <p id="theory1-p2" class="mt-1"><b>¹⁶O₂ (I=0)</b>: 偶J态禁戒缺失 (g_J=0)，仅存奇数转动态 J=1, 3, 5...。</p>
+                        <p id="theory1-p3" class="mt-1"><b>H₂O (I=1/2)</b>: 正水 (Ortho, 奇J) 与仲水 (Para, 偶J) 自旋权重为 <b>3:1</b>。</p>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 border border-slate-200">
+                        <h4 id="theory2-title" class="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                            <span class="text-emerald-500">●</span> 雷达探测特征与截面标度
+                        </h4>
+                        <p id="theory2-p1"><b>H₂O ν₁ 对称伸缩振动</b>: Δν=3657 cm⁻¹，532 nm 截面达 9.5×10⁻³¹ cm²/sr（约 2.5×N₂），为水汽激光雷达特征通道 (532→660.5 nm, 355→407.5 nm)。</p>
+                        <p id="theory2-p2" class="mt-1"><b>Placzek 定律</b>: 散射截面随激发光频率按 <b>(ν₀ - Δν)⁴</b> 剧烈缩放。</p>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Embedded High-Performance Client-Side Quantum Simulation Engine -->
+    <script>
+        // Internationalization (i18n) Bilingual Dictionary
+        const I18N = {
+            zh: {
+                page_title: "氧气/氮气/水汽/空气拉曼散射光谱与截面高精度交互仿真软件",
+                header_title: "拉曼散射光谱与截面实时交互仿真平台",
+                header_sub: "微观量子能级 · 核自旋统计 · 玻尔兹曼布居 · Placzek色散定律 · 全偏振分解 · 水汽通道扩展 · 离线全交互",
+                kernel_badge: "⚡ 浏览器实时计算内核",
+                export_csv: "💾 导出当前CSV数据",
+                gas_title: "1. 目标气体 (Target Gas)",
+                gas_air: "干空气 (Dry Air)",
+                gas_humid: "含湿空气 (Humid)",
+                gas_n2: "氮气 (N₂)",
+                gas_o2: "氧气 (O₂)",
+                gas_h2o: "水汽 (H₂O)",
+                gas_all: "全组分对比 (All)",
+                laser_title: "2. 激光波长 λ₀ (Laser)",
+                temp_title: "3. 环境温度 T (Temperature)",
+                temp_p1: "高空 120K", temp_p2: "常温 296K", temp_p3: "排气 600K", temp_p4: "火焰 1200K",
+                press_title: "3.5 环境压强与碰撞展宽",
+                press_status_off: "基准无碰撞",
+                press_chk: "开启低层大气碰撞压力展宽 (Voigt)",
+                press_lbl: "环境气压 P:",
+                press_p1: "0.00 真空", press_p2: "0.25 高空", press_p3: "1.00 常压", press_p4: "1.50 增压",
+                trans_title: "4. 跃迁阶数与支系 (Transitions)",
+                trans_rot: "纯转动拉曼 (Pure Rotational S/O支)",
+                trans_fund: "基频振转 (Fundamental v=0→1, Q/O/S)",
+                trans_hot: "热带跃迁 (Hot Bands v=1→2)",
+                trans_over: "泛频跃迁 (Overtones v=0→2)",
+                pol_title: "5. 偏振通道 (Polarization)",
+                pol_total: "总非偏振散射截面 (Total)",
+                pol_parallel: "平行偏振分量 (Parallel I_∥)",
+                pol_perp: "垂直偏振分量 (Perpendicular I_⊥)",
+                pol_depol: "退偏振比 (Depol. Ratio ρ)",
+                optics_title: "6. 光学分辨率与激光谱宽卷积",
+                fwhm_lbl: "接收端分辨率/滤光片半宽:",
+                laser_lw_chk: "启用发射激光谱宽双重卷积",
+                eff_fwhm_prefix: "合成半宽: ",
+                eff_fwhm_single: " (单频基准)",
+                eff_fwhm_conv: " (双重卷积)",
+                laser_lw_lbl: "激光脉冲谱宽 FWHM_laser:",
+                laser_p1: "0.00 nm (单频)", laser_p2: "0.02 nm (常规YAG)", laser_p3: "0.08 nm (宽带)",
+                xaxis_lbl: "横坐标类型:",
+                xaxis_wl: "波长 (nm)",
+                xaxis_shift: "拉曼位移 (cm⁻¹)",
+                yscale_lbl: "纵坐标刻度:",
+                yscale_lin: "线性刻度 (Linear)",
+                yscale_log: "对数刻度 (Log10)",
+                theory1_title: "量子自旋对称性法则",
+                theory1_p1: "<b>¹⁴N₂ (I=1)</b>: 偶J态与奇J态权重为 <b>2:1</b>，呈现梳状齿轮峰强。",
+                theory1_p2: "<b>¹⁶O₂ (I=0)</b>: 偶J态禁戒缺失 (g_J=0)，仅存奇数转动态 J=1, 3, 5...。",
+                theory1_p3: "<b>H₂O (I=1/2)</b>: 正水 (Ortho, 奇J) 与仲水 (Para, 偶J) 自旋权重为 <b>3:1</b>。",
+                theory2_title: "雷达探测特征与截面标度",
+                theory2_p1: "<b>H₂O ν₁ 对称伸缩振动</b>: Δν=3657 cm⁻¹，532 nm 截面达 9.5×10⁻³¹ cm²/sr（约 2.5×N₂），为水汽激光雷达特征通道 (532→660.5 nm, 355→407.5 nm)。",
+                theory2_p2: "<b>Placzek 定律</b>: 散射截面随激发光频率按 <b>(ν₀ - Δν)⁴</b> 剧烈缩放。",
+                metric_lines_suffix: " 条跃迁谱线",
+                metric_strongest_prefix: "最强峰: ",
+                metric_total_prefix: "全谱总截面: ",
+                plot_title_suffix: "拉曼散射光谱仿真",
+                axis_wl: "Scattered Wavelength / 散射光波长 λ (nm)",
+                axis_shift: "Raman Shift / 拉曼位移 Δν (cm⁻¹)",
+                axis_cross: "微分散射截面 dσ/dΩ (cm² · sr⁻¹ · nm⁻¹)",
+                axis_cross_cm: "微分散射截面 dσ/dΩ (cm² · sr⁻¹ · cm)",
+                axis_depol: "退偏振比 Depolarization Ratio ρ",
+                legend_cont: "卷积连续谱",
+                legend_stick: "分立跃迁线谱 (Stick)",
+                tooltip_mol: "分子",
+                tooltip_type: "类别",
+                tooltip_branch: "支",
+                tooltip_states: "量子态",
+                tooltip_wl: "波长",
+                tooltip_shift: "拉曼位移",
+                tooltip_cross: "截面",
+                tooltip_depol: "退偏比",
+                tooltip_coll_fwhm: "碰撞展宽FWHM",
+                no_data: "无有效数据"
+            },
+            en: {
+                page_title: "N₂ / O₂ / H₂O / Air Raman Scattering Spectrum & Cross Section Interactive Simulation Platform",
+                header_title: "Raman Scattering Spectrum & Cross Section Simulation Platform",
+                header_sub: "Quantum Rovibrational Levels · Nuclear Spin Statistics · Boltzmann Population · Placzek Dispersion · Polarization Decomposition · Atmospheric Water Vapor · Offline Interactive",
+                kernel_badge: "⚡ In-Browser Quantum Simulation Engine",
+                export_csv: "💾 Export CSV Data",
+                gas_title: "1. Target Gas Molecule",
+                gas_air: "Dry Air",
+                gas_humid: "Humid Air (1% H₂O)",
+                gas_n2: "Nitrogen (N₂)",
+                gas_o2: "Oxygen (O₂)",
+                gas_h2o: "Water Vapor (H₂O)",
+                gas_all: "All Gases (Comparison)",
+                laser_title: "2. Laser Wavelength λ₀",
+                temp_title: "3. Gas Temperature T",
+                temp_p1: "Stratosphere 120K", temp_p2: "Room 296K", temp_p3: "Exhaust 600K", temp_p4: "Flame 1200K",
+                press_title: "3.5 Pressure & Collisional Broadening",
+                press_status_off: "Baseline (No Coll.)",
+                press_chk: "Enable Tropospheric Collisional Broadening (Voigt)",
+                press_lbl: "Ambient Pressure P:",
+                press_p1: "0.00 Vacuum", press_p2: "0.25 High Alt.", press_p3: "1.00 Std. (1 atm)", press_p4: "1.50 Pressurized",
+                trans_title: "4. Transitions & Branches",
+                trans_rot: "Pure Rotational (S & O Branches)",
+                trans_fund: "Fundamental Rovibrational (v=0→1, Q/O/S)",
+                trans_hot: "Hot Bands (v=1→2)",
+                trans_over: "Overtones (v=0→2)",
+                pol_title: "5. Polarization Channels",
+                pol_total: "Total Unpolarized Cross Section (Total)",
+                pol_parallel: "Parallel Component (Parallel I_∥)",
+                pol_perp: "Perpendicular Component (Perpendicular I_⊥)",
+                pol_depol: "Depolarization Ratio (Depol. Ratio ρ)",
+                optics_title: "6. Optical Resolution & Laser Linewidth",
+                fwhm_lbl: "Receiver Resolution / Filter FWHM:",
+                laser_lw_chk: "Enable Laser Linewidth Double Convolution",
+                eff_fwhm_prefix: "Effective FWHM: ",
+                eff_fwhm_single: " (Single Freq.)",
+                eff_fwhm_conv: " (Double Conv.)",
+                laser_lw_lbl: "Laser Pulse Linewidth FWHM_laser:",
+                laser_p1: "0.00 nm (Single Freq.)", laser_p2: "0.02 nm (Std. YAG)", laser_p3: "0.08 nm (Broadband)",
+                xaxis_lbl: "X-Axis Mode:",
+                xaxis_wl: "Wavelength (nm)",
+                xaxis_shift: "Raman Shift (cm⁻¹)",
+                yscale_lbl: "Y-Axis Scale:",
+                yscale_lin: "Linear Scale",
+                yscale_log: "Logarithmic Scale (Log10)",
+                theory1_title: "Quantum Nuclear Spin Symmetry Rules",
+                theory1_p1: "<b>¹⁴N₂ (I=1)</b>: Even-J to odd-J nuclear spin statistical weight is <b>2:1</b>, generating an alternating comb-like intensity pattern.",
+                theory1_p2: "<b>¹⁶O₂ (I=0)</b>: Even-J rotational states are strictly forbidden (g_J=0); only odd rotational states J=1, 3, 5... exist.",
+                theory1_p3: "<b>H₂O (I=1/2)</b>: Ortho-water (odd J) to Para-water (even J) spin weight ratio is <b>3:1</b>.",
+                theory2_title: "Lidar Signatures & Cross-Section Scaling",
+                theory2_p1: "<b>H₂O ν₁ Symmetric Stretch</b>: Δν=3657 cm⁻¹ with cross section 9.5×10⁻³¹ cm²/sr at 532 nm (~2.5× N₂), key for atmospheric water vapor lidars (532→660.5 nm, 355→407.5 nm).",
+                theory2_p2: "<b>Placzek Dispersion Law</b>: Differential Raman cross section scales steeply with <b>(ν₀ - Δν)⁴</b>.",
+                metric_lines_suffix: " Transition Lines",
+                metric_strongest_prefix: "Strongest Peak: ",
+                metric_total_prefix: "Total Integrated Cross Section: ",
+                plot_title_suffix: "Raman Scattering Spectrum Simulation",
+                axis_wl: "Scattered Wavelength λ (nm)",
+                axis_shift: "Raman Shift Δν (cm⁻¹)",
+                axis_cross: "Differential Cross Section dσ/dΩ (cm² · sr⁻¹ · nm⁻¹)",
+                axis_cross_cm: "Differential Cross Section dσ/dΩ (cm² · sr⁻¹ · cm)",
+                axis_depol: "Depolarization Ratio ρ",
+                legend_cont: "Convolved Spectrum",
+                legend_stick: "Discrete Transitions (Stick)",
+                tooltip_mol: "Molecule",
+                tooltip_type: "Type",
+                tooltip_branch: "Branch",
+                tooltip_states: "States",
+                tooltip_wl: "Wavelength",
+                tooltip_shift: "Raman Shift",
+                tooltip_cross: "Cross Section",
+                tooltip_depol: "Depol. Ratio",
+                tooltip_coll_fwhm: "Collisional FWHM",
+                no_data: "No valid data to export"
+            }
+        };
+
+        let currentLang = 'zh';
+
+        // Physical Constants
+        const H_PLANCK = 6.62607015e-34;
+        const C_LIGHT_CM = 2.99792458e10;
+        const K_BOLTZ = 1.380649e-23;
+        const HC_OVER_K = (H_PLANCK * C_LIGHT_CM) / K_BOLTZ; // ~ 1.438777 cm*K
+
+        // Molecular Spectroscopic Parameters
+        const MOL_DATA = {
+            N2: {
+                name: "Nitrogen", formula: "N₂", spin: 1.0,
+                omega_e: 2358.57, omega_e_xe: 14.324,
+                B_e: 1.99824, alpha_e: 0.01732, D_e: 5.76e-6,
+                gamma2: 0.50e-48, sigma_vib_ref_532: 3.8e-31,
+                vib_shift: 2330.7, rho_Q: 0.035, air_fraction: 0.78084
+            },
+            O2: {
+                name: "Oxygen", formula: "O₂", spin: 0.0,
+                omega_e: 1580.19, omega_e_xe: 11.98,
+                B_e: 1.44563, alpha_e: 0.0158, D_e: 4.88e-6,
+                gamma2: 1.25e-48, sigma_vib_ref_532: 5.1e-31,
+                vib_shift: 1555.6, rho_Q: 0.065, air_fraction: 0.20946
+            },
+            H2O: {
+                name: "Water Vapor", formula: "H₂O", spin: 0.5,
+                omega_e: 3657.05, omega_e_xe: 43.8,
+                omega_e_nu2: 1594.75,
+                B_e: 14.52, alpha_e: 0.12, D_e: 3.2e-4,
+                gamma2: 0.10e-48, sigma_vib_ref_532: 9.5e-31,
+                sigma_nu2_ref_532: 0.38e-31,
+                vib_shift: 3657.05, rho_Q: 0.05, air_fraction: 0.010
+            }
+        };
+
+        // Current App State
+        let currentGas = "Air";
+        let currentLaser = 532.0;
+        let currentTemp = 296.15;
+        let enablePressure = false;
+        let currentPressure = 1.00;
+        let currentFWHM = 0.25;
+        let enableLaserLw = false;
+        let currentLaserLw = 0.020;
+        let cachedLines = [];
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            document.documentElement.lang = (lang === 'zh' ? 'zh-CN' : 'en');
+            
+            // Switch button styling
+            const btnZh = document.getElementById('btn-lang-zh');
+            const btnEn = document.getElementById('btn-lang-en');
+            if (lang === 'zh') {
+                btnZh.className = "px-2.5 py-1 rounded font-semibold transition bg-sky-600 text-white";
+                btnEn.className = "px-2.5 py-1 rounded font-semibold transition text-slate-300 hover:text-white";
+            } else {
+                btnZh.className = "px-2.5 py-1 rounded font-semibold transition text-slate-300 hover:text-white";
+                btnEn.className = "px-2.5 py-1 rounded font-semibold transition bg-sky-600 text-white";
+            }
+
+            const t = I18N[lang];
+            document.title = t.page_title;
+            document.getElementById('hdr-title-text').textContent = t.header_title;
+            document.getElementById('hdr-subtitle').textContent = t.header_sub;
+            document.getElementById('badge-kernel').textContent = t.kernel_badge;
+            document.getElementById('btn-export-csv').textContent = t.export_csv;
+
+            // Sidebar section headers
+            document.getElementById('lbl-sec-gas').textContent = t.gas_title;
+            document.getElementById('lbl-sec-laser').textContent = t.laser_title;
+            document.getElementById('lbl-sec-temp').textContent = t.temp_title;
+            document.getElementById('lbl-sec-press').textContent = t.press_title;
+            document.getElementById('lbl-sec-trans').textContent = t.trans_title;
+            document.getElementById('lbl-sec-pol').textContent = t.pol_title;
+            document.getElementById('lbl-sec-optics').textContent = t.optics_title;
+
+            // Gas buttons
+            const gasLabels = {
+                Air: t.gas_air,
+                HumidAir: t.gas_humid,
+                N2: t.gas_n2,
+                O2: t.gas_o2,
+                H2O: t.gas_h2o,
+                All: t.gas_all
+            };
+            document.querySelectorAll('.gas-btn').forEach(btn => {
+                const g = btn.getAttribute('data-gas');
+                if (g && gasLabels[g]) btn.textContent = gasLabels[g];
+            });
+
+            // Temperature presets
+            document.getElementById('btn-temp-120').textContent = t.temp_p1;
+            document.getElementById('btn-temp-296').textContent = t.temp_p2;
+            document.getElementById('btn-temp-600').textContent = t.temp_p3;
+            document.getElementById('btn-temp-1200').textContent = t.temp_p4;
+
+            // Pressure controls
+            document.getElementById('lbl-chk-press').textContent = t.press_chk;
+            document.getElementById('lbl-press-title').textContent = t.press_lbl;
+            document.getElementById('btn-press-0').textContent = t.press_p1;
+            document.getElementById('btn-press-25').textContent = t.press_p2;
+            document.getElementById('btn-press-100').textContent = t.press_p3;
+            document.getElementById('btn-press-150').textContent = t.press_p4;
+
+            // Transitions checkboxes
+            document.getElementById('lbl-chk-rot').textContent = t.trans_rot;
+            document.getElementById('lbl-chk-fund').textContent = t.trans_fund;
+            document.getElementById('lbl-chk-hot').textContent = t.trans_hot;
+            document.getElementById('lbl-chk-over').textContent = t.trans_over;
+
+            // Polarization dropdown options
+            document.getElementById('opt-pol-total').textContent = t.pol_total;
+            document.getElementById('opt-pol-parallel').textContent = t.pol_parallel;
+            document.getElementById('opt-pol-perp').textContent = t.pol_perp;
+            document.getElementById('opt-pol-depol').textContent = t.pol_depol;
+
+            // Optics & Laser controls
+            document.getElementById('lbl-fwhm-title').textContent = t.fwhm_lbl;
+            document.getElementById('lbl-chk-laser-lw').textContent = t.laser_lw_chk;
+            document.getElementById('lbl-laser-lw-title').textContent = t.laser_lw_lbl;
+            document.getElementById('btn-laser-0').textContent = t.laser_p1;
+            document.getElementById('btn-laser-02').textContent = t.laser_p2;
+            document.getElementById('btn-laser-08').textContent = t.laser_p3;
+            document.getElementById('lbl-xaxis-title').textContent = t.xaxis_lbl;
+            document.getElementById('opt-xaxis-wl').textContent = t.xaxis_wl;
+            document.getElementById('opt-xaxis-shift').textContent = t.xaxis_shift;
+            document.getElementById('lbl-yscale-title').textContent = t.yscale_lbl;
+            document.getElementById('opt-yscale-lin').textContent = t.yscale_lin;
+            document.getElementById('opt-yscale-log').textContent = t.yscale_log;
+
+            // Theory cards
+            document.getElementById('theory1-title').innerHTML = `<span class="text-sky-500">●</span> ` + t.theory1_title;
+            document.getElementById('theory1-p1').innerHTML = t.theory1_p1;
+            document.getElementById('theory1-p2').innerHTML = t.theory1_p2;
+            document.getElementById('theory1-p3').innerHTML = t.theory1_p3;
+            document.getElementById('theory2-title').innerHTML = `<span class="text-emerald-500">●</span> ` + t.theory2_title;
+            document.getElementById('theory2-p1').innerHTML = t.theory2_p1;
+            document.getElementById('theory2-p2').innerHTML = t.theory2_p2;
+
+            updatePressureDisplay();
+            updateFwhmDisplay();
+            recalculateAndPlot();
+        }
+
+        function setGas(gas) {
+            currentGas = gas;
+            document.querySelectorAll('.gas-btn').forEach(btn => {
+                if (btn.getAttribute('data-gas') === gas) {
+                    btn.className = "gas-btn active py-2 px-2 rounded-lg border font-medium text-center transition bg-sky-600 text-white border-sky-600";
+                } else {
+                    btn.className = "gas-btn py-2 px-2 rounded-lg border font-medium text-center transition bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100";
+                }
+            });
+            recalculateAndPlot();
+        }
+
+        function setLaser(wl) {
+            currentLaser = parseFloat(wl);
+            document.getElementById('laser-slider').value = currentLaser;
+            document.getElementById('laser-val').textContent = currentLaser.toFixed(1) + " nm";
+            updatePressureDisplay();
+            recalculateAndPlot();
+        }
+
+        function onLaserSlide(val) {
+            currentLaser = parseFloat(val);
+            document.getElementById('laser-val').textContent = currentLaser.toFixed(1) + " nm";
+            updatePressureDisplay();
+            recalculateAndPlot();
+        }
+
+        function setTemp(t) {
+            currentTemp = parseFloat(t);
+            document.getElementById('temp-slider').value = currentTemp;
+            document.getElementById('temp-val').textContent = currentTemp.toFixed(1) + " K";
+            updatePressureDisplay();
+            recalculateAndPlot();
+        }
+
+        function onTempSlide(val) {
+            currentTemp = parseFloat(val);
+            document.getElementById('temp-val').textContent = currentTemp.toFixed(1) + " K";
+            updatePressureDisplay();
+            recalculateAndPlot();
+        }
+
+        // --- Low-Atmosphere Pure Rotational Raman Collisional Pressure Broadening (Scheme A) ---
+        function computeCollisionalHWHM(molKey, J, P, T) {
+            let gamma0 = 0.050;
+            let nTemp = 0.70;
+            if (molKey === "N2") {
+                if (J < 6.5) {
+                    gamma0 = 0.050 + 0.023 * (J / 6.5);
+                } else {
+                    gamma0 = 0.020 + 0.053 * Math.exp(-Math.pow((J - 6.5) / 6.2, 2));
+                }
+                gamma0 = Math.max(0.018, Math.min(0.075, gamma0));
+                nTemp = 0.70;
+            } else if (molKey === "O2") {
+                if (J < 5.5) {
+                    gamma0 = 0.042 + 0.018 * (J / 5.5);
+                } else {
+                    gamma0 = 0.018 + 0.042 * Math.exp(-Math.pow((J - 5.5) / 5.5, 2));
+                }
+                gamma0 = Math.max(0.016, Math.min(0.062, gamma0));
+                nTemp = 0.75;
+            } else {
+                gamma0 = 0.030 + 0.050 * Math.exp(-J / 12.0);
+                nTemp = 0.65;
+            }
+            const tRatio = 296.0 / Math.max(10.0, T);
+            return gamma0 * Math.max(0.0, P) * Math.pow(tRatio, nTemp);
+        }
+
+        function voigtOlivero(fG, fL) {
+            if (fL <= 1e-12) return { fV: fG, eta: 0.0 };
+            if (fG <= 1e-12) return { fV: fL, eta: 1.0 };
+            const fV = 0.5346 * fL + Math.sqrt(0.2166 * fL * fL + fG * fG);
+            const ratio = fL / fV;
+            const eta = Math.max(0.0, Math.min(1.0, 1.36603 * ratio - 0.47719 * ratio * ratio + 0.11116 * Math.pow(ratio, 3)));
+            return { fV, eta };
+        }
+
+        function updatePressureDisplay() {
+            const pElem = document.getElementById('pressure-val');
+            if (pElem) {
+                const hPa = Math.round(currentPressure * 1013.25);
+                pElem.textContent = `${currentPressure.toFixed(2)} atm (${hPa} hPa)`;
+            }
+            const badge = document.getElementById('badge-press-status');
+            if (badge) {
+                const t = I18N[currentLang];
+                if (enablePressure && currentPressure > 0) {
+                    const gammaN2S6 = computeCollisionalHWHM("N2", 6, currentPressure, currentTemp);
+                    const fwhmCm = 2.0 * gammaN2S6;
+                    const fwhmNm = fwhmCm * (currentLaser * currentLaser) / 1e7;
+                    const prefix = (currentLang === 'zh') ? "碰撞FWHM" : "Coll. FWHM";
+                    badge.textContent = `${prefix}: ${fwhmCm.toFixed(3)}cm⁻¹ (${(fwhmNm*1000).toFixed(1)}pm @S6)`;
+                    badge.className = "px-2 py-0.5 rounded text-[11px] font-mono bg-indigo-50 text-indigo-700 border border-indigo-300 font-bold";
+                } else {
+                    const baseTxt = enablePressure ? ((currentLang === 'zh') ? "真空 (0.00 atm)" : "Vacuum (0.00 atm)") : t.press_status_off;
+                    badge.textContent = baseTxt;
+                    badge.className = "px-2 py-0.5 rounded text-[11px] font-mono bg-slate-100 text-slate-600 border border-slate-200";
+                }
+            }
+        }
+
+        function togglePressureBroadening(checked) {
+            enablePressure = checked;
+            const panel = document.getElementById('pressure-panel');
+            if (panel) {
+                if (checked) {
+                    panel.className = "space-y-2 opacity-100 pointer-events-auto transition-opacity";
+                } else {
+                    panel.className = "space-y-2 opacity-40 pointer-events-none transition-opacity";
+                }
+            }
+            updatePressureDisplay();
+            recalculateAndPlot();
+        }
+
+        function onPressureSlide(val) {
+            currentPressure = parseFloat(val);
+            updatePressureDisplay();
+            recalculateAndPlot();
+        }
+
+        function setPressure(val) {
+            currentPressure = parseFloat(val);
+            const slider = document.getElementById('pressure-slider');
+            if (slider) slider.value = currentPressure;
+            updatePressureDisplay();
+            recalculateAndPlot();
+        }
+
+        function getEffectiveFWHM() {
+            if (!enableLaserLw || currentLaserLw <= 0) return currentFWHM;
+            return Math.sqrt(currentFWHM * currentFWHM + currentLaserLw * currentLaserLw);
+        }
+
+        function updateFwhmDisplay() {
+            document.getElementById('fwhm-val').textContent = currentFWHM.toFixed(2) + " nm";
+            const lwValElem = document.getElementById('laser-lw-val');
+            if (lwValElem) lwValElem.textContent = currentLaserLw.toFixed(3) + " nm";
+            const eff = getEffectiveFWHM();
+            const xAxisSel = document.getElementById('sel-xaxis');
+            const isCm = xAxisSel && xAxisSel.value === "raman_shift";
+            const effCm = eff * (1e7 / Math.pow(currentLaser, 2));
+
+            const badge = document.getElementById('badge-eff-fwhm');
+            if (badge) {
+                const t = I18N[currentLang];
+                const cmPrefix = (currentLang === 'zh') ? " (折合 " : " (equiv. ";
+                const cmNote = isCm ? `${cmPrefix}${effCm.toFixed(2)} cm⁻¹)` : "";
+                if (enableLaserLw && currentLaserLw > 0) {
+                    badge.textContent = `${t.eff_fwhm_prefix}${eff.toFixed(3)} nm${cmNote}${t.eff_fwhm_conv}`;
+                    badge.className = "px-2 py-0.5 rounded text-[11px] font-mono bg-amber-50 text-amber-700 border border-amber-300 font-bold";
+                } else {
+                    badge.textContent = `${t.eff_fwhm_prefix}${eff.toFixed(2)} nm${cmNote}${t.eff_fwhm_single}`;
+                    badge.className = "px-2 py-0.5 rounded text-[11px] font-mono bg-sky-50 text-sky-700 border border-sky-200";
+                }
+            }
+        }
+
+        function onFwhmSlide(val) {
+            currentFWHM = parseFloat(val);
+            updateFwhmDisplay();
+            recalculateAndPlot();
+        }
+
+        function toggleLaserLinewidth(checked) {
+            enableLaserLw = checked;
+            const panel = document.getElementById('laser-lw-panel');
+            if (panel) {
+                if (checked) {
+                    panel.className = "space-y-2 opacity-100 pointer-events-auto transition-opacity";
+                } else {
+                    panel.className = "space-y-2 opacity-40 pointer-events-none transition-opacity";
+                }
+            }
+            updateFwhmDisplay();
+            recalculateAndPlot();
+        }
+
+        function onLaserLwSlide(val) {
+            currentLaserLw = parseFloat(val);
+            updateFwhmDisplay();
+            recalculateAndPlot();
+        }
+
+        function setLaserLw(val) {
+            currentLaserLw = parseFloat(val);
+            const slider = document.getElementById('laser-lw-slider');
+            if (slider) slider.value = currentLaserLw;
+            updateFwhmDisplay();
+            recalculateAndPlot();
+        }
+
+        function toggleYScale(scaleMode) {
+            Plotly.relayout('plot-div', {
+                'yaxis.type': scaleMode === "log" ? "log" : "linear"
+            });
+        }
+
+        // --- Quantum Mechanics Computation Engine ---
+        function energyTerm(molKey, v, J) {
+            const m = MOL_DATA[molKey];
+            const G = m.omega_e * (v + 0.5) - m.omega_e_xe * Math.pow(v + 0.5, 2);
+            const B_v = m.B_e - m.alpha_e * (v + 0.5);
+            const F = B_v * J * (J + 1) - m.D_e * Math.pow(J * (J + 1), 2);
+            return G + F;
+        }
+
+        function nuclearWeight(molKey, J) {
+            if (molKey === "N2") return (J % 2 === 0) ? 6.0 : 3.0;
+            if (molKey === "O2") return (J % 2 === 0) ? 0.0 : 1.0;
+            if (molKey === "H2O") return (J % 2 !== 0) ? 3.0 : 1.0; // Ortho (odd J) : Para (even J) = 3:1
+            return 1.0;
+        }
+
+        function partitionFunction(molKey, T) {
+            let Q = 0;
+            const E00 = (molKey === "O2") ? energyTerm(molKey, 0, 1) : energyTerm(molKey, 0, 0);
+            const jMax = 80;
+            for (let v = 0; v <= 4; v++) {
+                for (let J = 0; J <= jMax; J++) {
+                    const g = nuclearWeight(molKey, J);
+                    if (g === 0) continue;
+                    const E = energyTerm(molKey, v, J) - E00;
+                    Q += (2 * J + 1) * g * Math.exp(-E * HC_OVER_K / T);
+                }
+            }
+            return Q;
+        }
+
+        function boltzmannPopulation(molKey, v, J, T, Q_tot) {
+            const g = nuclearWeight(molKey, J);
+            if (g === 0) return 0;
+            const E00 = (molKey === "O2") ? energyTerm(molKey, 0, 1) : energyTerm(molKey, 0, 0);
+            const E = energyTerm(molKey, v, J) - E00;
+            return ((2 * J + 1) * g * Math.exp(-E * HC_OVER_K / T)) / Q_tot;
+        }
+
+        function computeMoleculeLines(molKey, laserWl, T, incRot, incFund, incHot, incOver, polMode) {
+            const m = MOL_DATA[molKey];
+            const lines = [];
+            const nu0 = 1e7 / laserWl;
+            const Q_tot = partitionFunction(molKey, T);
+            const constFactor = (Math.PI * Math.PI) / (45.0 * 8.8541878128e-12);
+
+            // 1. Pure Rotational Raman Bands (v=0 -> 0)
+            if (incRot) {
+                for (let J = 0; J <= 50; J++) {
+                    const P_J = boltzmannPopulation(molKey, 0, J, T, Q_tot);
+                    if (P_J < 1e-13) continue;
+
+                    // Stokes J -> J + 2
+                    const J_prime_S = J + 2;
+                    if (nuclearWeight(molKey, J_prime_S) > 0) {
+                        const dnu = energyTerm(molKey, 0, J_prime_S) - energyTerm(molKey, 0, J);
+                        const nu_s = nu0 - dnu;
+                        if (nu_s > 0) {
+                            const b_JJ = (3.0 * (J + 1) * (J + 2)) / (2.0 * (2 * J + 1) * (2 * J + 3));
+                            const dsigma = constFactor * Math.pow(nu_s, 4) * m.gamma2 * b_JJ * P_J;
+                            const lambda_s = 1e7 / nu_s;
+                            const pEff = (enablePressure ? currentPressure : 0.0);
+                            const gammaHwhm = computeCollisionalHWHM(molKey, J, pEff, T);
+                            const fwhmCollCm = 2.0 * gammaHwhm;
+                            const fwhmCollNm = fwhmCollCm * Math.pow(lambda_s, 2) / 1e7;
+                            lines.push({
+                                mol: m.formula, type: "Pure Rotational", branch: "S", dir: "Stokes",
+                                v_low: 0, J_low: J, v_up: 0, J_up: J_prime_S,
+                                raman_shift: dnu, scattered_wl: lambda_s,
+                                cross_section: dsigma, rho: 0.75,
+                                fwhm_coll_cm: fwhmCollCm, fwhm_coll_nm: fwhmCollNm,
+                                label: `${m.formula} S(${J})`
+                            });
+                        }
+                    }
+
+                    // Anti-Stokes J -> J - 2
+                    if (J >= 2) {
+                        const J_prime_O = J - 2;
+                        if (nuclearWeight(molKey, J_prime_O) > 0) {
+                            const dnu_as = energyTerm(molKey, 0, J_prime_O) - energyTerm(molKey, 0, J); // negative
+                            const nu_as = nu0 - dnu_as;
+                            const b_JJ_as = (3.0 * J * (J - 1)) / (2.0 * (2 * J + 1) * (2 * J - 1));
+                            const dsigma_as = constFactor * Math.pow(nu_as, 4) * m.gamma2 * b_JJ_as * P_J;
+                            const lambda_as = 1e7 / nu_as;
+                            const pEff = (enablePressure ? currentPressure : 0.0);
+                            const gammaHwhm_as = computeCollisionalHWHM(molKey, J, pEff, T);
+                            const fwhmCollCm_as = 2.0 * gammaHwhm_as;
+                            const fwhmCollNm_as = fwhmCollCm_as * Math.pow(lambda_as, 2) / 1e7;
+                            lines.push({
+                                mol: m.formula, type: "Pure Rotational", branch: "O", dir: "Anti-Stokes",
+                                v_low: 0, J_low: J, v_up: 0, J_up: J_prime_O,
+                                raman_shift: dnu_as, scattered_wl: lambda_as,
+                                cross_section: dsigma_as, rho: 0.75,
+                                fwhm_coll_cm: fwhmCollCm_as, fwhm_coll_nm: fwhmCollNm_as,
+                                label: `${m.formula} O(${J})`
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 2. Vibrational Bands Generator
+            function addVibBand(v_l, v_u, label, bandFactor) {
+                const nu_ref_532 = 1e7 / 532.0;
+                const scale = Math.pow((nu0 - m.vib_shift) / (nu_ref_532 - m.vib_shift), 4);
+                const sigma_base = m.sigma_vib_ref_532 * scale;
+
+                for (let J = 0; J <= 40; J++) {
+                    const P_vJ = boltzmannPopulation(molKey, v_l, J, T, Q_tot);
+                    if (P_vJ < 1e-13) continue;
+
+                    const E_low = energyTerm(molKey, v_l, J);
+
+                    // Q-branch (Delta J = 0)
+                    const dnu_Q = energyTerm(molKey, v_u, J) - E_low;
+                    const nu_s_Q = nu0 - dnu_Q;
+                    if (nu_s_Q > 0) {
+                        const dsigma_Q = sigma_base * bandFactor * 0.92 * P_vJ;
+                        lines.push({
+                            mol: m.formula, type: label, branch: "Q", dir: "Stokes",
+                            v_low: v_l, J_low: J, v_up: v_u, J_up: J,
+                            raman_shift: dnu_Q, scattered_wl: 1e7 / nu_s_Q,
+                            cross_section: dsigma_Q, rho: m.rho_Q,
+                            label: `${m.formula} ${label[0]}Q(${J})`
+                        });
+                    }
+
+                    // S-branch (Delta J = +2)
+                    const J_p_S = J + 2;
+                    if (nuclearWeight(molKey, J_p_S) > 0) {
+                        const dnu_S = energyTerm(molKey, v_u, J_p_S) - E_low;
+                        const nu_s_S = nu0 - dnu_S;
+                        if (nu_s_S > 0) {
+                            const b_S = (3.0 * (J + 1) * (J + 2)) / (2.0 * (2 * J + 1) * (2 * J + 3));
+                            const dsigma_S = sigma_base * bandFactor * 0.04 * b_S * P_vJ;
+                            lines.push({
+                                mol: m.formula, type: label, branch: "S", dir: "Stokes",
+                                v_low: v_l, J_low: J, v_up: v_u, J_up: J_p_S,
+                                raman_shift: dnu_S, scattered_wl: 1e7 / nu_s_S,
+                                cross_section: dsigma_S, rho: 0.75,
+                                label: `${m.formula} ${label[0]}S(${J})`
+                            });
+                        }
+                    }
+
+                    // O-branch (Delta J = -2)
+                    if (J >= 2) {
+                        const J_p_O = J - 2;
+                        if (nuclearWeight(molKey, J_p_O) > 0) {
+                            const dnu_O = energyTerm(molKey, v_u, J_p_O) - E_low;
+                            const nu_s_O = nu0 - dnu_O;
+                            if (nu_s_O > 0) {
+                                const b_O = (3.0 * J * (J - 1)) / (2.0 * (2 * J + 1) * (2 * J - 1));
+                                const dsigma_O = sigma_base * bandFactor * 0.04 * b_O * P_vJ;
+                                lines.push({
+                                    mol: m.formula, type: label, branch: "O", dir: "Stokes",
+                                    v_low: v_l, J_low: J, v_up: v_u, J_up: J_p_O,
+                                    raman_shift: dnu_O, scattered_wl: 1e7 / nu_s_O,
+                                    cross_section: dsigma_O, rho: 0.75,
+                                    label: `${m.formula} ${label[0]}O(${J})`
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (incFund) {
+                addVibBand(0, 1, "Fundamental", 1.0);
+                if (molKey === "H2O") {
+                    const nu_ref_532 = 1e7 / 532.0;
+                    const scale_nu2 = Math.pow((nu0 - m.omega_e_nu2) / (nu_ref_532 - m.omega_e_nu2), 4);
+                    const sigma_nu2_base = m.sigma_nu2_ref_532 * scale_nu2;
+                    for (let J = 0; J <= 25; J++) {
+                        const P_vJ = boltzmannPopulation(molKey, 0, J, T, Q_tot);
+                        if (P_vJ < 1e-13) continue;
+                        const dnu_nu2 = m.omega_e_nu2 + 2.0 * m.B_e * (J + 1) * 0.1;
+                        const nu_s = nu0 - dnu_nu2;
+                        if (nu_s > 0) {
+                            lines.push({
+                                mol: m.formula, type: "Fundamental (nu2)", branch: "Q", dir: "Stokes",
+                                v_low: 0, J_low: J, v_up: 1, J_up: J,
+                                raman_shift: dnu_nu2, scattered_wl: 1e7 / nu_s,
+                                cross_section: sigma_nu2_base * P_vJ, rho: 0.05,
+                                label: `H₂O ν₂ Q(${J})`
+                            });
+                        }
+                    }
+                }
+            }
+            if (incHot) addVibBand(1, 2, "Hot Band", 2.0);
+            if (incOver) addVibBand(0, 2, "Overtone", 0.025);
+
+            // 3. Polarization Component Factor Application
+            lines.forEach(l => {
+                if (polMode === "parallel") {
+                    l.active_cross = l.cross_section * (1.0 / (1.0 + l.rho));
+                } else if (polMode === "perpendicular") {
+                    l.active_cross = l.cross_section * (l.rho / (1.0 + l.rho));
+                } else if (polMode === "depol_ratio") {
+                    l.active_cross = l.rho;
+                } else {
+                    l.active_cross = l.cross_section; // total
+                }
+            });
+
+            return lines;
+        }
+
+        // Fast Gaussian and Pseudo-Voigt Line Synthesis for Convolution
+        function convolveLines(lines, gridX, baseFwhm, isWl) {
+            const y = new Float64Array(gridX.length);
+            const N = gridX.length;
+            const dx = (gridX[N - 1] - gridX[0]) / (N - 1);
+            const sigmaG = baseFwhm / 2.35482;
+            const twoSigmaG2 = 2.0 * sigmaG * sigmaG;
+            const normG = 1.0 / (sigmaG * Math.sqrt(2 * Math.PI));
+
+            lines.forEach(l => {
+                const x0 = isWl ? l.scattered_wl : l.raman_shift;
+                const A = l.active_cross;
+                if (A <= 0) return;
+
+                // Collisional Broadening check for pure rotational lines
+                if (enablePressure && l.type === "Pure Rotational" && l.fwhm_coll_cm > 0) {
+                    const fL = isWl ? l.fwhm_coll_nm : l.fwhm_coll_cm;
+                    const { fV, eta } = voigtOlivero(baseFwhm, fL);
+                    const sG = fV / 2.35482;
+                    const gNorm = 1.0 / (sG * Math.sqrt(2 * Math.PI));
+                    const lGamma = fV / 2.0;
+                    const lNorm = 1.0 / (Math.PI * lGamma);
+                    const halfW = 4.0 * fV;
+                    const iMin = Math.max(0, Math.floor((x0 - halfW - gridX[0]) / dx));
+                    const iMax = Math.min(N - 1, Math.ceil((x0 + halfW - gridX[0]) / dx));
+
+                    for (let i = iMin; i <= iMax; i++) {
+                        const diff = gridX[i] - x0;
+                        const gComp = gNorm * Math.exp(-(diff * diff) / (2.0 * sG * sG));
+                        const lComp = lNorm / (1.0 + (diff * diff) / (lGamma * lGamma));
+                        y[i] += A * (eta * lComp + (1.0 - eta) * gComp);
+                    }
+                } else {
+                    // Standard Gaussian Convolution
+                    const halfW = 3.5 * baseFwhm;
+                    const iMin = Math.max(0, Math.floor((x0 - halfW - gridX[0]) / dx));
+                    const iMax = Math.min(N - 1, Math.ceil((x0 + halfW - gridX[0]) / dx));
+
+                    for (let i = iMin; i <= iMax; i++) {
+                        const diff = gridX[i] - x0;
+                        y[i] += A * normG * Math.exp(-(diff * diff) / twoSigmaG2);
+                    }
+                }
+            });
+            return y;
+        }
+
+        // Main Simulation Dispatcher & Plotly View Controller
+        function recalculateAndPlot() {
+            const incRot = document.getElementById('chk-rot').checked;
+            const incFund = document.getElementById('chk-fund').checked;
+            const incHot = document.getElementById('chk-hot').checked;
+            const incOver = document.getElementById('chk-over').checked;
+            const polMode = document.getElementById('sel-pol').value;
+            const isWl = document.getElementById('sel-xaxis').value === "wavelength";
+
+            let lines = [];
+            if (currentGas === "Air") {
+                const linesN2 = computeMoleculeLines("N2", currentLaser, currentTemp, incRot, incFund, incHot, incOver, polMode);
+                const linesO2 = computeMoleculeLines("O2", currentLaser, currentTemp, incRot, incFund, incHot, incOver, polMode);
+                linesN2.forEach(l => { l.cross_section *= 0.78084; l.active_cross *= 0.78084; });
+                linesO2.forEach(l => { l.cross_section *= 0.20946; l.active_cross *= 0.20946; });
+                lines = linesN2.concat(linesO2);
+            } else if (currentGas === "HumidAir") {
+                const dryScale = 0.99;
+                const linesN2 = computeMoleculeLines("N2", currentLaser, currentTemp, incRot, incFund, incHot, incOver, polMode);
+                const linesO2 = computeMoleculeLines("O2", currentLaser, currentTemp, incRot, incFund, incHot, incOver, polMode);
+                const linesH2O = computeMoleculeLines("H2O", currentLaser, currentTemp, incRot, incFund, incHot, incOver, polMode);
+                linesN2.forEach(l => { l.cross_section *= 0.78084 * dryScale; l.active_cross *= 0.78084 * dryScale; });
+                linesO2.forEach(l => { l.cross_section *= 0.20946 * dryScale; l.active_cross *= 0.20946 * dryScale; });
+                linesH2O.forEach(l => { l.cross_section *= 0.01; l.active_cross *= 0.01; });
+                lines = linesN2.concat(linesO2).concat(linesH2O);
+            } else if (currentGas === "All") {
+                const linesN2 = computeMoleculeLines("N2", currentLaser, currentTemp, incRot, incFund, incHot, incOver, polMode);
+                const linesO2 = computeMoleculeLines("O2", currentLaser, currentTemp, incRot, incFund, incHot, incOver, polMode);
+                const linesH2O = computeMoleculeLines("H2O", currentLaser, currentTemp, incRot, incFund, incHot, incOver, polMode);
+                lines = linesN2.concat(linesO2).concat(linesH2O);
+            } else {
+                lines = computeMoleculeLines(currentGas, currentLaser, currentTemp, incRot, incFund, incHot, incOver, polMode);
+            }
+
+            cachedLines = lines;
+
+            if (lines.length === 0) {
+                const emptyMsg = (currentLang === 'zh') ? "请至少选择一种跃迁类型" : "Please select at least one transition band";
+                Plotly.newPlot('plot-div', [], { title: emptyMsg });
+                return;
+            }
+
+            // Compute effective FWHM combining receiver resolution & laser pulse linewidth
+            const effFWHM = getEffectiveFWHM();
+            const fwhmInGrid = isWl ? effFWHM : effFWHM * (1e7 / Math.pow(currentLaser, 2));
+            updateFwhmDisplay();
+
+            // Setup Convolution Grid
+            const xCoords = lines.map(l => isWl ? l.scattered_wl : l.raman_shift);
+            const xMin = Math.min(...xCoords) - (isWl ? 3 : 50);
+            const xMax = Math.max(...xCoords) + (isWl ? 3 : 50);
+            const gridPts = 3500;
+            const gridX = new Float64Array(gridPts);
+            const stepX = (xMax - xMin) / (gridPts - 1);
+            for (let i = 0; i < gridPts; i++) gridX[i] = xMin + i * stepX;
+
+            const traces = [];
+            const t = I18N[currentLang];
+
+            if (currentGas === "All") {
+                const lN2 = lines.filter(l => l.mol === "N₂");
+                const lO2 = lines.filter(l => l.mol === "O₂");
+                const lH2O = lines.filter(l => l.mol === "H₂O");
+                const yN2 = convolveLines(lN2, gridX, fwhmInGrid, isWl);
+                const yO2 = convolveLines(lO2, gridX, fwhmInGrid, isWl);
+                const yH2O = convolveLines(lH2O, gridX, fwhmInGrid, isWl);
+
+                const pressTag = (enablePressure && currentPressure > 0) ? ` (+ P=${currentPressure.toFixed(2)}atm)` : "";
+                const cSuffix = (currentLang === 'zh') ? " 连续谱" : " Convolved";
+                traces.push({
+                    x: gridX, y: yN2, type: 'scatter', mode: 'lines',
+                    name: `N₂${cSuffix}${pressTag}`, line: { color: '#0284c7', width: 2 }
+                });
+                traces.push({
+                    x: gridX, y: yO2, type: 'scatter', mode: 'lines',
+                    name: `O₂${cSuffix}${pressTag}`, line: { color: '#10b981', width: 2 }
+                });
+                traces.push({
+                    x: gridX, y: yH2O, type: 'scatter', mode: 'lines',
+                    name: `H₂O${cSuffix}${pressTag}`, line: { color: '#d97706', width: 2 }
+                });
+            } else {
+                let lineColor = '#0f172a';
+                if (currentGas === "N2") lineColor = '#0284c7';
+                else if (currentGas === "O2") lineColor = '#10b981';
+                else if (currentGas === "H2O") lineColor = '#d97706';
+                else if (currentGas === "HumidAir") lineColor = '#0369a1';
+
+                const yTotal = convolveLines(lines, gridX, fwhmInGrid, isWl);
+                const fwhmUnit = isWl ? "nm" : "cm⁻¹";
+                const fwhmDisplayVal = isWl ? effFWHM : fwhmInGrid;
+                let fwhmTag = (enableLaserLw && currentLaserLw > 0)
+                    ? `FWHM_eff=${fwhmDisplayVal.toFixed(isWl ? 3 : 2)}${fwhmUnit}`
+                    : `FWHM=${fwhmDisplayVal.toFixed(2)}${fwhmUnit}`;
+                if (enablePressure && currentPressure > 0) {
+                    fwhmTag += ` + P=${currentPressure.toFixed(2)}atm`;
+                }
+                const gasDisp = (currentLang === 'zh') ? currentGas : (currentGas === "Air" ? "Dry Air" : (currentGas === "HumidAir" ? "Humid Air" : currentGas));
+                const specSuffix = (currentLang === 'zh') ? " 卷积连续谱" : " Convolved Spectrum";
+                traces.push({
+                    x: gridX, y: yTotal, type: 'scatter', mode: 'lines',
+                    name: `${gasDisp}${specSuffix} (${fwhmTag})`,
+                    line: { color: lineColor, width: 2.2 }
+                });
+            }
+
+            // Stick lines trace with rich hover tooltips
+            const stickX = [];
+            const stickY = [];
+            const stickText = [];
+            const stickColors = [];
+
+            lines.forEach(l => {
+                const x = isWl ? l.scattered_wl : l.raman_shift;
+                const y = l.active_cross;
+                stickX.push(x);
+                stickY.push(y);
+
+                let c = "#0284c7";
+                if (l.mol === "H₂O") {
+                    c = "#d97706";
+                } else if (l.mol === "O₂") {
+                    c = "#10b981";
+                } else {
+                    if (l.type === "Pure Rotational") c = (l.dir === "Stokes") ? "#0284c7" : "#06b6d4";
+                    else if (l.type.includes("Fundamental")) c = (l.branch === "Q") ? "#dc2626" : "#ea580c";
+                    else c = "#9333ea";
+                }
+                stickColors.push(c);
+
+                let collInfo = "";
+                if (enablePressure && l.type === "Pure Rotational" && l.fwhm_coll_cm > 0) {
+                    collInfo = `<br>${t.tooltip_coll_fwhm}: ${l.fwhm_coll_cm.toFixed(3)} cm⁻¹ (${(l.fwhm_coll_nm * 1000).toFixed(1)} pm)`;
+                }
+
+                stickText.push(
+                    `<b>${l.label}</b><br>` +
+                    `${t.tooltip_mol}: ${l.mol}<br>` +
+                    `${t.tooltip_type}: ${l.type} (${l.branch}-${t.tooltip_branch})<br>` +
+                    `${t.tooltip_states}: (v''=${l.v_low}, J''=${l.J_low}) → (v'=${l.v_up}, J'=${l.J_up})<br>` +
+                    `${t.tooltip_wl}: ${l.scattered_wl.toFixed(3)} nm<br>` +
+                    `${t.tooltip_shift}: ${l.raman_shift.toFixed(2)} cm⁻¹<br>` +
+                    `${t.tooltip_cross}: ${l.active_cross.toExponential(3)} cm²/sr<br>` +
+                    `${t.tooltip_depol}: ${l.rho.toFixed(3)}` +
+                    collInfo
+                );
+            });
+
+            traces.push({
+                x: stickX, y: stickY, type: 'bar',
+                width: isWl ? 0.08 : 1.0,
+                name: t.legend_stick,
+                marker: { color: stickColors },
+                text: stickText, hoverinfo: 'text', opacity: 0.75
+            });
+
+            const yAxisType = document.getElementById('sel-yscale').value === "log" ? "log" : "linear";
+            const xTitle = isWl ? t.axis_wl : t.axis_shift;
+            const yTitle = (polMode === "depol_ratio") ? t.axis_depol : (isWl ? t.axis_cross : t.axis_cross_cm);
+            const pressTitleTag = (enablePressure && currentPressure > 0)
+                ? `, P = ${currentPressure.toFixed(2)} atm` : "";
+            const gasDisp = (currentLang === 'zh') ? currentGas : (currentGas === "Air" ? "Dry Air" : (currentGas === "HumidAir" ? "Humid Air" : currentGas));
+
+            const layout = {
+                title: {
+                    text: `<b>${gasDisp} ${t.plot_title_suffix} (λ₀ = ${currentLaser.toFixed(1)} nm, T = ${currentTemp.toFixed(1)} K${pressTitleTag})</b>`,
+                    font: { size: 16, color: '#1e293b' }
+                },
+                xaxis: { title: xTitle, showgrid: true, zeroline: true, gridcolor: '#e2e8f0' },
+                yaxis: {
+                    title: yTitle,
+                    type: yAxisType, showgrid: true, zeroline: true, gridcolor: '#e2e8f0',
+                    exponentformat: 'e'
+                },
+                barmode: 'overlay',
+                hovermode: 'closest',
+                legend: { orientation: 'h', y: -0.18, x: 0.5, xanchor: 'center' },
+                margin: { t: 50, r: 25, l: 75, b: 85 }
+            };
+
+            const config = { responsive: true, displaylogo: false };
+            Plotly.react('plot-div', traces, layout, config);
+
+            // Update Status Metrics
+            document.getElementById('metric-lines').textContent = `${lines.length}${t.metric_lines_suffix}`;
+            const strongest = lines.reduce((max, l) => l.active_cross > max.active_cross ? l : max, lines[0]);
+            document.getElementById('metric-strongest').innerHTML =
+                `${t.metric_strongest_prefix}<b>${strongest.label}</b> (λ=${strongest.scattered_wl.toFixed(2)} nm, Δν=${strongest.raman_shift.toFixed(1)} cm⁻¹)`;
+            const totalCross = lines.reduce((sum, l) => sum + l.active_cross, 0);
+            document.getElementById('metric-total-cross').textContent = `${t.metric_total_prefix}${totalCross.toExponential(3)} cm²/sr`;
+        }
+
+        // Export 100% English CSV with UTF-8 BOM to prevent Excel mojibake
+        function exportCSV() {
+            if (!cachedLines || cachedLines.length === 0) {
+                alert(I18N[currentLang].no_data);
+                return;
+            }
+            // Standard 100% English ASCII Header with UTF-8 BOM
+            let csv = "\uFEFFMolecule,Transition_Type,Branch,Direction,v_lower,J_lower,v_upper,J_upper,Wavelength_nm,Raman_Shift_cm-1,Diff_Cross_Section_cm2_sr,Active_Cross_Section_cm2_sr,Depolarization_Ratio_rho,Collisional_FWHM_cm-1,Collisional_FWHM_nm,Transition_Label\n";
+            cachedLines.forEach(l => {
+                const molClean = (l.mol || "").replace(/₂/g, "2");
+                const labelClean = (l.label || "").replace(/₂/g, "2").replace(/ν/g, "nu").replace(/₁/g, "1");
+                const typeClean = (l.type || "").replace(/ν/g, "nu").replace(/₁/g, "1").replace(/₂/g, "2");
+                const diffCross = (l.cross_section || 0).toExponential(5);
+                const actCross = (l.active_cross || l.cross_section || 0).toExponential(5);
+                const cCm = (l.fwhm_coll_cm !== undefined && l.fwhm_coll_cm !== null) ? l.fwhm_coll_cm.toFixed(4) : "0.0000";
+                const cNm = (l.fwhm_coll_nm !== undefined && l.fwhm_coll_nm !== null) ? l.fwhm_coll_nm.toFixed(6) : "0.000000";
+                csv += `${molClean},${typeClean},${l.branch},${l.dir},${l.v_low},${l.J_low},${l.v_up},${l.J_up},${l.scattered_wl.toFixed(5)},${l.raman_shift.toFixed(3)},${diffCross},${actCross},${l.rho.toFixed(4)},${cCm},${cNm},${labelClean}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `raman_${currentGas}_${currentLaser}nm_${currentTemp}K.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Initialize Plot on Page Load
+        window.addEventListener('DOMContentLoaded', () => {
+            recalculateAndPlot();
+        });
+    </script>
+</body>
+</html>
